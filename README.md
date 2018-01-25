@@ -1,9 +1,11 @@
 # asker
-counterpart to Responder.py
+counterpart to [Responder.py](https://github.com/SpiderLabs/Responder)
 
 This tool takes a list of known-bogus local hostnames, and sends out LLMNR requests for them every 5-25 legitimate LLMNR requests from other hosts.
 
-This is intended for use by a blue team who wants to catch a red team or attacker using Responder, who either does not target-select carefully enough, or falls for the bogus hostnames which should be tailored to the environment (e.g. if there is a DC named "addc1", you might want to add "adddc1" to the list.
+This is intended for use by a blue team who wants to catch a red team or attacker using [Responder](https://github.com/SpiderLabs/Responder), who either does not target-select carefully enough, or falls for the bogus hostnames which should be tailored to the environment (e.g. if there is a DC named "addc1", you might want to add "adddc1" to the list.
+
+note: this tool requres [scapy](https://github.com/secdev/scapy) to be installed.
 
 #### Running the script
 
