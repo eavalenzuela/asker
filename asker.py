@@ -70,7 +70,7 @@ def getHwAddr(ifname):
         print('getting HW id')
         if sys.platform == 'Windows':
             print('Windows detected... calling ipconfig.')
-        elif sys.platform == 'Linux':
+        elif sys.platform == 'linux2':
             print('Linux detected... calling ifconfig.')
             try:
                 # Get MAC
