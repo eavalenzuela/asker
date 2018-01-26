@@ -24,3 +24,5 @@ The packet will show up as an "ANY" type DNS query...
 and be seen by Responder as any other LLMNR request:
 
 ![responder](images/responder.png)
+
+**Ctrl-C interrupts the sniff() loop instance, sending out an LLMNR phish. To interrupt the program, use Ctrl-Z, then 'sudo killall python'.**
