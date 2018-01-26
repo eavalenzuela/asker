@@ -49,7 +49,7 @@ class ThreadedServerUDP():
             print(bad_guy_response)
             for i in bad_guy_response:
                 print i
-                #writeLog(i)
+                writeLogRaw(i)
 
 def get_port(service):
     while True:
@@ -121,6 +121,11 @@ def getHwAddr(ifname):
             sys.exit(1)
         return mac, ip
 
+def writeLogRaw(res):
+    fopen = open('./asker.log', 'a')
+    fopen.write(str(res))
+    fopen.close()
+    
 def writeLog(client, data=''):
     separator = '='*50
     fopen = open('./asker.log', 'a')
