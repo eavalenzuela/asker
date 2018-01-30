@@ -4,11 +4,7 @@
 import argparse, sys, time, socket, threading, struct, random
 from SocketServer import TCPServer, UDPServer, ThreadingMixIn
 from subprocess import Popen, PIPE
-
-try:
-    from scapy.all import *
-except NameError:
-    pass
+from scapy.all import *
 
 parser = argparse.ArgumentParser(description="Assorted protocol honeypot.")
 parser.add_argument('namelist', type=argparse.FileType('r'), help='File for the LLMNR sender server.')
@@ -48,7 +44,6 @@ class ThreadedServerUDP():
             print("response:")
             print(bad_guy_response)
             for i in bad_guy_response:
-                print i
                 writeLogRaw(i)
 
 def get_port(service):
