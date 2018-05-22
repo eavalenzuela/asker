@@ -7,16 +7,23 @@ from subprocess import Popen, PIPE
 from scapy.all import *
 
 parser = argparse.ArgumentParser(description="Assorted protocol honeypot.")
-parser.add_argument('namelist', type=argparse.FileType('r'), help='File for the LLMNR sender server.')
+parser.add_argument('namelist', help='File for the LLMNR sender server.')
 parser.add_argument('-int' '--interface', dest='intface', help='Optional interface argument for listener.')
+parser.add_argument('-e' '--email', dest='email_address', help='Email addresss to alerts when a response is detected.')
 args = parser.parse_args()
 
 class ThreadedServerUDP():
-    def __init__(self, host, port, intface):
+    def __init__(self, host, port, args):
         print('ThreadedServerUDP init')
         self.host = host
         self.port = port
-        self.intface = intface
+        if args.intface:
+            self.intface = args.intface
+        else:
+            self.intface = None
+        self.filename = args.namelist
+        if args.email_address:
+            self.email = args.email_address
 
     def listen(self):
         print('TSU listen function')
@@ -28,23 +35,45 @@ class ThreadedServerUDP():
                 p = sniff(filter="dst host 224.0.0.252", count=rr)
             print p.summary()
             print ('Building a packet to send!')
-            #query_name = getNameToSend()
+            query_name = get_name_to_send(self.filename)
             if self.intface is not None:
                 (mac, ip) = getHwAddr(self.intface)
-                snd_pkt = Ether(src=mac, dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", src=ip)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname="testing-ev.", qtype=255))
+                snd_pkt = Ether(src=mac, dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", src=ip)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name, qtype=255))
             else:
-                snd_pkt = Ether(dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", ttl=1)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname="testing-ev.", qtype=255))
+                snd_pkt = Ether(dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", ttl=1)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name, qtype=255))
             snd_pkt.show2()
             if self.intface is not None:
-                print('sending on interface: '+self.intface)
+                print('sending request for '+query_name+' on interface: '+self.intface)
                 bad_guy_response = srp(snd_pkt, timeout=10)
             else:
-                print('sending on default interface')
+                print('sending request for '+query_name+' on default interface')
                 bad_guy_response = srp(snd_pkt, timeout=10)
             print("response:")
             print(bad_guy_response)
+            msg = MIMEText(str(bad_guy_response))
+            msg['Subject'] = 'Illegal LLMNR Response Detected!'
+            sender = ('Asker Agent on '+socket.getHostName())
+            msg['From'] = sender
+            msg['To'] = self.email
+            s = smtplib.SMTP('localhost')
+            s.sendmail(sender, self.email, msg.as_string())
+            s.quit()
             for i in bad_guy_response:
                 writeLogRaw(i)
+
+def get_name_to_send(namelist):
+    names = []
+    try:
+        with open(namelist, 'r') as infile:
+            content = infile.read()
+            for line in content:
+                names.append(line)
+    except Exception as ex:
+        print(ex)
+    if names:
+        return (random.choice(names)+".")
+    else:
+        return 'adddc1-prod.'
 
 def get_port(service):
     while True:
@@ -131,10 +160,7 @@ def main():
     try:
         threads = []
         intface = None
-        print args.intface
-        if args.intface is not None:
-            intface = args.intface
-        ThreadedServerUDP('224.0.0.252', 5355, intface).listen()
+        ThreadedServerUDP('224.0.0.252', 5355, args).listen()
         #ThreadedServerUDP("0.0.0.0", 5355).listen()
     except KeyboardInterrupt:
         print ('Exiting...')
