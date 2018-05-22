@@ -1,9 +1,10 @@
 # Meant as a counter for Red Teams running Responder without being careful
 # Sends out LLMNR requests for random names and sends alerts if responded to.
 
-import argparse, sys, time, socket, threading, struct, random
+import argparse, sys, time, socket, threading, struct, random, smtplib
 from SocketServer import TCPServer, UDPServer, ThreadingMixIn
 from subprocess import Popen, PIPE
+from email.mime.text import *
 from scapy.all import *
 
 parser = argparse.ArgumentParser(description="Assorted protocol honeypot.")
@@ -52,7 +53,7 @@ class ThreadedServerUDP():
             print(bad_guy_response)
             msg = MIMEText(str(bad_guy_response))
             msg['Subject'] = 'Illegal LLMNR Response Detected!'
-            sender = ('Asker Agent on '+socket.getHostName())
+            sender = ('Asker Agent on '+os.uname()[1])
             msg['From'] = sender
             msg['To'] = self.email
             s = smtplib.SMTP('localhost')
@@ -64,9 +65,9 @@ class ThreadedServerUDP():
 def get_name_to_send(namelist):
     names = []
     try:
-        with open(namelist, 'r') as infile:
-            content = infile.read()
-            for line in content:
+        with open(namelist, 'rb') as infile:
+            for line in infile:
+                print(line)
                 names.append(line)
     except Exception as ex:
         print(ex)
@@ -165,10 +166,13 @@ def main():
     except KeyboardInterrupt:
         print ('Exiting...')
         sys.exit()
+    """
     except:
+        print('Mainloop exception.')
         print(sys.exc_info()[0])
         print(sys.exc_info()[1])
         print(sys.exc_info()[2])
+    """
 
 if __name__ == '__main__':
     main()
