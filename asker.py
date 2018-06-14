@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser(description="Assorted protocol honeypot.")
 parser.add_argument('namelist', help='File for the LLMNR sender server.')
 parser.add_argument('-int' '--interface', dest='intface', help='Optional interface argument for listener.')
 parser.add_argument('-e' '--email', dest='email_address', help='Email addresss to alerts when a response is detected.')
+parser.add_argument('--randomize_src_ip', action='store_true', help='Make each LLMNR request appear to come from a differnt internal IP.')
 args = parser.parse_args()
 
 class ThreadedServerUDP():
@@ -18,13 +19,14 @@ class ThreadedServerUDP():
         print('ThreadedServerUDP init')
         self.host = host
         self.port = port
+        self.email = None
         if args.intface:
             self.intface = args.intface
         else:
             self.intface = None
         self.filename = args.namelist
         if args.email_address:
-            self.email = args.email_address
+            email = args.email_address
 
     def listen(self):
         print('TSU listen function')
@@ -36,12 +38,23 @@ class ThreadedServerUDP():
                 p = sniff(filter="dst host 224.0.0.252", count=rr)
             print p.summary()
             print ('Building a packet to send!')
-            query_name = get_name_to_send(self.filename)
+            query_name = get_name_to_send(self.filename).strip()
+            print(query_name)
+            print(query_name[len(query_name)-1])
+            if query_name[len(query_name)-1] is not '.':
+                print("query_name doesn't end in a period. appending...")
+                query_name = query_name+'.'
             if self.intface is not None:
                 (mac, ip) = getHwAddr(self.intface)
-                snd_pkt = Ether(src=mac, dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", src=ip)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name, qtype=255))
+                if args.randomize_src_ip:
+                    ip = get_random_ip()
+                snd_pkt = Ether(src=mac, dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", src=ip)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name.strip(), qtype=255))
             else:
-                snd_pkt = Ether(dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", ttl=1)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name, qtype=255))
+                if args.randomize_src_ip:
+                    ip = get_random_ip()
+                    snd_pkt = Ether(dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", ttl=1, src=ip)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name.strip(), qtype=255))
+                else:
+                    snd_pkt = Ether(dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", ttl=1)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name.strip(), qtype=255))
             snd_pkt.show2()
             if self.intface is not None:
                 print('sending request for '+query_name+' on interface: '+self.intface)
@@ -50,15 +63,16 @@ class ThreadedServerUDP():
                 print('sending request for '+query_name+' on default interface')
                 bad_guy_response = srp(snd_pkt, timeout=10)
             print("response:")
-            print(bad_guy_response)
-            msg = MIMEText(str(bad_guy_response))
-            msg['Subject'] = 'Illegal LLMNR Response Detected!'
-            sender = ('Asker Agent on '+os.uname()[1])
-            msg['From'] = sender
-            msg['To'] = self.email
-            s = smtplib.SMTP('localhost')
-            s.sendmail(sender, self.email, msg.as_string())
-            s.quit()
+            print(bad_guy_response[0])
+            if self.email:
+                msg = MIMEText(str(bad_guy_response[0]))
+                msg['Subject'] = 'Illegal LLMNR Response Detected!'
+                sender = ('Asker Agent on '+os.uname()[1])
+                msg['From'] = sender
+                msg['To'] = self.email
+                s = smtplib.SMTP('localhost')
+                s.sendmail(sender, self.email, msg.as_string())
+                s.quit()
             for i in bad_guy_response:
                 writeLogRaw(i)
 
@@ -67,14 +81,25 @@ def get_name_to_send(namelist):
     try:
         with open(namelist, 'rb') as infile:
             for line in infile:
-                print(line)
                 names.append(line)
     except Exception as ex:
         print(ex)
     if names:
-        return (random.choice(names)+".")
+        return (random.choice(names).strip())+'.'
     else:
         return 'adddc1-prod.'
+
+def get_random_ip():
+    ip_ranges = ['10.x.x.x', '172.16.x.x', '192.168.0.x']
+    ip_range = random.choice(ip_ranges)
+    final_ip = []
+    for substring in ip_range.split('.'):
+        if substring is 'x':
+            r_octet = random.randint(2, 252)
+            final_ip.append(str(r_octet))
+        else:
+            final_ip.append(str(substring))
+    return '.'.join(final_ip)
 
 def get_port(service):
     while True:
