@@ -2,6 +2,7 @@
 # Sends out LLMNR requests for random names and sends alerts if responded to.
 
 import argparse, sys, time, socket, threading, struct, random, smtplib
+from multiprocessing.pool import ThreadPool
 from SocketServer import TCPServer, UDPServer, ThreadingMixIn
 from subprocess import Popen, PIPE
 from email.mime.text import *
@@ -13,6 +14,11 @@ parser.add_argument('-int' '--interface', dest='intface', help='Optional interfa
 parser.add_argument('-e' '--email', dest='email_address', help='Email addresss to alerts when a response is detected.')
 parser.add_argument('--randomize_src_ip', action='store_true', help='Make each LLMNR request appear to come from a differnt internal IP.')
 args = parser.parse_args()
+
+def sniff_worker(dst_port, query_name):
+    response = sniff(filter="dst port "+str(dst_port), count=1, timeout=5)
+    return response
+    
 
 class ThreadedServerUDP():
     def __init__(self, host, port, args):
@@ -41,40 +47,52 @@ class ThreadedServerUDP():
             query_name = get_name_to_send(self.filename).strip()
             print(query_name)
             print(query_name[len(query_name)-1])
+
             if query_name[len(query_name)-1] is not '.':
                 print("query_name doesn't end in a period. appending...")
                 query_name = query_name+'.'
+
+            pool = ThreadPool(processes=1)
+            result = pool.apply_async(sniff_worker, (15335, query_name))
+
             if self.intface is not None:
                 (mac, ip) = getHwAddr(self.intface)
                 if args.randomize_src_ip:
                     ip = get_random_ip()
-                snd_pkt = Ether(src=mac, dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", src=ip)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name.strip(), qtype=255))
+                snd_pkt = Ether(src=mac, dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", src=ip)/UDP(sport=15335, dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name.strip(), qtype=255))
             else:
                 if args.randomize_src_ip:
                     ip = get_random_ip()
-                    snd_pkt = Ether(dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", ttl=1, src=ip)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name.strip(), qtype=255))
+                    snd_pkt = Ether(dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", ttl=1, src=ip)/UDP(sport=15335, dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name.strip(), qtype=255))
                 else:
-                    snd_pkt = Ether(dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", ttl=1)/UDP(dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name.strip(), qtype=255))
+                    snd_pkt = Ether(dst="01:00:5e:00:00:fc")/IP(dst="224.0.0.252", ttl=1)/UDP(sport=15335, dport=5355)/LLMNRQuery(id=1337, qdcount=1, qd=DNSQR(qname=query_name.strip(), qtype=255))
             snd_pkt.show2()
             if self.intface is not None:
                 print('sending request for '+query_name+' on interface: '+self.intface)
-                bad_guy_response = srp(snd_pkt, timeout=10)
+                sendp(snd_pkt, iface=self.intface)
             else:
                 print('sending request for '+query_name+' on default interface')
-                bad_guy_response = srp(snd_pkt, timeout=10)
-            print("response:")
-            print(bad_guy_response[0])
-            if self.email:
-                msg = MIMEText(str(bad_guy_response[0]))
-                msg['Subject'] = 'Illegal LLMNR Response Detected!'
-                sender = ('Asker Agent on '+os.uname()[1])
-                msg['From'] = sender
-                msg['To'] = self.email
-                s = smtplib.SMTP('localhost')
-                s.sendmail(sender, self.email, msg.as_string())
-                s.quit()
-            for i in bad_guy_response:
-                writeLogRaw(i)
+                sendp(snd_pkt)
+
+            bad_guy_response = result.get()
+
+            if re.findall(r'^[a-zA-Z0-9]*\.', query_name)[0]:
+                query_short_name = re.findall(r'^[a-zA-Z0-9]*\.', query_name)[0].replace('.', '')
+                print('short name: '+query_short_name)
+                for pkt in bad_guy_response:
+                    if re.findall(query_short_name, str(pkt)):
+                        print('FOUND MALICIOUS RESPONSE!')
+                        if self.email:
+                            msg = MIMEText(str(bad_guy_response[0]))
+                            msg['Subject'] = 'Illegal LLMNR Response Detected!'
+                            sender = ('Asker Agent on '+os.uname()[1])
+                            msg['From'] = sender
+                            msg['To'] = self.email
+                            s = smtplib.SMTP('localhost')
+                            s.sendmail(sender, self.email, msg.as_string())
+                            s.quit()
+                        writeLogRaw("Malicious response from: "+pkt[IP].src)
+                        print("Malicious response from: "+pkt[IP].src)
 
 def get_name_to_send(namelist):
     names = []
