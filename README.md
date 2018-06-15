@@ -25,4 +25,14 @@ and be seen by Responder as any other LLMNR request:
 
 ![responder](images/responder.png)
 
+Once it responds to the request...
+
+![malicious_response](images/malicious_response.png)
+
+the response will be identified and alerted on:
+
+![malicious_response_detection](images/malicious_response_detection.png)
+
 **Ctrl-C interrupts the sniff() loop instance, sending out an LLMNR phish. To interrupt the program, use Ctrl-Z, then 'sudo killall python'.**
+
+
