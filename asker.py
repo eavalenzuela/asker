@@ -12,6 +12,10 @@ parser = argparse.ArgumentParser(description="Assorted protocol honeypot.")
 parser.add_argument('namelist', help='File for the LLMNR sender server.')
 parser.add_argument('-int' '--interface', dest='intface', help='Optional interface argument for listener.')
 parser.add_argument('-e' '--email', dest='email_address', help='Email addresss to alerts when a response is detected.')
+parser.add_argument('--smtp_server', dest='smtp_server', help='Address of your smtp server.')
+parser.add_argument('--smtp_port', dest='smtp_port', help='Port for your smtp server.')
+parser.add_argument('--smtp_username', dest='smtp_username', help='Username of your email account.')
+parser.add_argument('--smtp_password', dest='smtp_password', help='Password of your email account.')
 parser.add_argument('--randomize_src_ip', action='store_true', help='Make each LLMNR request appear to come from a differnt internal IP.')
 args = parser.parse_args()
 
@@ -23,6 +27,7 @@ def sniff_worker(dst_port, query_name):
 class ThreadedServerUDP():
     def __init__(self, host, port, args):
         print('ThreadedServerUDP init')
+        self.previous_email_sent_time = None
         self.host = host
         self.port = port
         self.email = None
@@ -32,7 +37,7 @@ class ThreadedServerUDP():
             self.intface = None
         self.filename = args.namelist
         if args.email_address:
-            email = args.email_address
+            self.email = args.email_address
 
     def listen(self):
         print('TSU listen function')
@@ -83,16 +88,47 @@ class ThreadedServerUDP():
                     if re.findall(query_short_name, str(pkt)):
                         print('FOUND MALICIOUS RESPONSE!')
                         if self.email:
-                            msg = MIMEText(str(bad_guy_response[0]))
-                            msg['Subject'] = 'Illegal LLMNR Response Detected!'
-                            sender = ('Asker Agent on '+os.uname()[1])
-                            msg['From'] = sender
-                            msg['To'] = self.email
-                            s = smtplib.SMTP('localhost')
-                            s.sendmail(sender, self.email, msg.as_string())
-                            s.quit()
+                            print('Checking for alert times.')
+                            if self.previous_email_sent_time is None:
+                                print('No previous alerts sent. Sending...')
+                                self.previous_email_sent_time = time.time()
+                                send_alert_email(self.email, query_name, pkt, args)
+                            elif (time.time() - self.previous_email_sent_time)>=600:
+                                print('Previous alert sent '+(time.time()-self.previous_email_sent_time)+' seconds ago.')
+                                self.previous_email_sent_time = time.time()
+                                send_alert_email(self.email, query_name, pkt, args)
+                            else:
+                                print('Previous alert was sent less than 600 seconds ago. Holding...')
                         writeLogRaw("Malicious response from: "+pkt[IP].src)
                         print("Malicious response from: "+pkt[IP].src)
+
+def send_alert_email(email, query_name, pkt, args):
+    try:
+        print('Preparing email...')
+        email_body = "The Asker agent running on "+os.uname()[1]+" detected a response to a request it sent for "+query_name.strip()+".\nThe response originated from "+pkt[IP].src
+        send_to = email
+        sent_from = args.smtp_username
+        subject = "Illegal LLMNR Response Detected"
+
+        email_text = "\r\n".join([
+            "From: "+os.uname()[1],
+            "To: "+email,
+            "Subject: Illegal LLMNR Response Detected",
+            "",
+            email_body])
+
+        print("Message: "+email_text)
+        print('Message prepared. Sending...')
+        s = smtplib.SMTP(args.smtp_server, args.smtp_port)
+        s.ehlo()
+        s.starttls()
+        s.ehlo()
+        s.login(args.smtp_username, args.smtp_password)
+        s.sendmail(args.smtp_username, email, email_text)
+        s.close()
+    except Exception as ex:
+        print(ex)
+    return
 
 def get_name_to_send(namelist):
     names = []
