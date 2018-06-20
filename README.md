@@ -35,4 +35,6 @@ the response will be identified and alerted on:
 
 **Ctrl-C interrupts the sniff() loop instance, sending out an LLMNR phish. To interrupt the program, use Ctrl-Z, then 'sudo killall python'.**
 
+If the email options are provided when run, an email will be sent(max once every 5 minutes) when an alert is tripped.
 
+![email_alert](images/email.png)
