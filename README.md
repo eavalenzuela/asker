@@ -10,6 +10,7 @@ This is intended for use by a blue team who wants to catch a red team or attacke
 **note2: if you receive errors about vboxnet not being a valid interface from ifconfig on 'import scapy.all', this is an issue with scapy that I cannot fix, and will affect any programs using scapy's 'route' module. To resolve, run "sudo ifconfig vboxnet(n) down" for any virtualbox network adapters. I've only seen this is OS X, but it should apply in Linux as well.**
 
 #### Running the script
+(I know the bait names change; I put these together over a long period of testing and I'll fix it later...)
 
 ![launch](images/launch.png)
 

@@ -94,7 +94,7 @@ class ThreadedServerUDP():
                                 self.previous_email_sent_time = time.time()
                                 send_alert_email(self.email, query_name, pkt, args)
                             elif (time.time() - self.previous_email_sent_time)>=600:
-                                print('Previous alert sent '+(time.time()-self.previous_email_sent_time)+' seconds ago.')
+                                print('Previous alert sent '+str(time.time()-self.previous_email_sent_time)+' seconds ago.')
                                 self.previous_email_sent_time = time.time()
                                 send_alert_email(self.email, query_name, pkt, args)
                             else:
@@ -241,7 +241,6 @@ def main():
         threads = []
         intface = None
         ThreadedServerUDP('224.0.0.252', 5355, args).listen()
-        #ThreadedServerUDP("0.0.0.0", 5355).listen()
     except KeyboardInterrupt:
         print ('Exiting...')
         sys.exit()
