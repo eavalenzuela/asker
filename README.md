@@ -12,17 +12,13 @@ This is intended for use by a blue team who wants to catch a red team or attacke
 #### Running the script
 (I know the bait names change; I put these together over a long period of testing and I'll fix it later...)
 
-![launch](images/launch.png)
+![launch](images/asker_start.gif)
 
 Once the script starts, it will begin sniffing LLMNR packets on the local network. After enough requests are seen, it will construct and send its own.
 
-![bait_send](images/bait_send.png)
+![bait_send](images/asker_sendquery.gif)
 
-The packet will show up as an "ANY" type DNS query...
-
-![wireshark](images/wireshark.png)
-
-and be seen by Responder as any other LLMNR request:
+The packet will show up as an "ANY" type DNS query and be treated by Responder as any other LLMNR request:
 
 ![responder](images/responder.png)
 
@@ -32,7 +28,7 @@ Once it responds to the request...
 
 the response will be identified and alerted on:
 
-![malicious_response_detection](images/malicious_response_detection.png)
+![malicious_response_detection](images/asker_malresponse.gif)
 
 **Ctrl-C interrupts the sniff() loop instance, sending out an LLMNR phish. To interrupt the program, use Ctrl-Z, then 'sudo killall python'.**
 
