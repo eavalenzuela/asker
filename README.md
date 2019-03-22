@@ -1,4 +1,4 @@
-# asker
+# asker - LLMNR Honeypot
 counterpart to [Responder.py](https://github.com/SpiderLabs/Responder)
 
 This tool takes a list of known-bogus local hostnames, and sends out LLMNR requests for them every 5-25 legitimate LLMNR requests from other hosts.
